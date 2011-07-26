@@ -10,10 +10,10 @@ class KindleClippingsParser
   
   def load(file_path)
     file = File.open(file_path)
-    clear_unwanted_returns_and_newlines(file.read)
+    delete_returns(file.read)
   end
   
-  def clear_unwanted_returns_and_newlines(str)
+  def delete_returns(str)
     str = str.gsub(/[\r]/,"")
   end
 
@@ -22,32 +22,43 @@ class KindleClippingsParser
     separator   = "="*10
     raw_entries = @contents.split(separator)
     raw_entries.map! { |entry| trim_leading_newline(entry) }
+    parsed_entries = []
     
-    #now that we have individual entries, for each one we want to get:
-    #Title (author) --- if author does not exist use ""
-    #Highlight location
-    #Added on date (February 10, 2010, 01:39 PM)
-    #Contents
-    
-    parenthesis_regexp = /[\(\)]/
+    #Author
+    #eg: "For Whom the Bell Tolls (Ernest Hemingway)"
+    parenthesis_regexp = /[\(\)]/ #matches ( or )
+    #Matches: "(Ernest Hemingway)"
     author_regexp =  /(\()        (?# opening parenthesis)
                       [^\)^\(]*?  (?# anything that is not a parenthesis - non-greedy)
                       (\))        (?# closing parenthesis)
                       \Z          (?# this must be at the end of the line because book title may contain parenthesis)
                      /x
-                     
+    
+    #Date Added
+    #eg: "- Highlight Loc. 10177-78 | Added on Sunday, October 24, 2010, 04:32 PM"       
     days = %w{Monday Tuesday Wednesday Thursday Friday Saturday Sunday}.join("|")
     months = %w{January February March April May June July August September October November December}.join("|")
-    
+    #Matches: "Sunday, October 24, 2010, 04:32 PM"
     date_regexp = /(#{days}),\s           (?# "Monday, " days followed by comma and a space)
                    (#{months})\s\d{2},\s  (?# "January 05, " month followed by comma and a space)
                    \d{4},\s               (?# "2011, " year followed by comma and space)
-                   \d{2}:\d{2}\s          (?# "")
-                   (AM|PM)
-                   \Z
+                   \d{2}:\d{2}\s          (?# "02:24 " time followed by a space)
+                   (AM|PM)                (?# "AM")
+                   \Z                     (?# End of string)
                   /x
-                  
-    entries = []
+     
+    #Entry Type and Position:
+    #eg: "- Highlight Loc. 10177-78 | Added on Sunday, October 24, 2010, 04:32 PM"            
+    #Matches: "Highlight"
+    entry_type_regexp = /(?<=-\s)         (?# look behind for "- " this marks the beginning of the line)
+                         (Highlight|Note) (?# match either Highlight or Note, the two types of entries to clippings)
+                        /x
+    #Matches: "0177-78"                    
+    highlight_position_regexp = /(?<=Loc\.\s) (#? look behind to match "Loc. " which appears before the position number)
+                                 \d*         (#? match any number of digits - books can be any length)
+                                 ([-]\d*)?   (#? may have a - followed by another number of arbitrary length)
+                                 (?=\s|)     (#? lastly just to be safe double check that it is followed by a " | ")
+                                /x
     
     raw_entries.each do |entry|
       lines = entry.split(/\n/)
@@ -60,25 +71,29 @@ class KindleClippingsParser
         lines.first.gsub!(author_regexp,"") #clear out the author to simplify getting the title
         title = lines.first.strip
         
+        #highlight type
+        entry_type = lines[1].match(entry_type_regexp).to_a.first
+        
         #highlight location
-        highlight_location = ""
+        highlight_location = lines[1].match(highlight_position_regexp).to_a.first
         
         #added date
-        date_added = lines[1].match(date_regexp).to_a.first
+        date = lines[1].match(date_regexp).to_a.first
         
         #contents
         contents = lines[2..lines.length].join
         
         #push to entries
-        entries.push( { :title  => title, 
-                        :author => author,
-                        :date_added => date_added,
-                        :contents => contents } )
+        parsed_entries.push( { :title  => title,
+                               :author => author,
+                               :date => date,
+                               :type => entry_type,
+                               :location => highlight_location,
+                               :contents => contents } )
       end
     end
     
-    entries
-    
+    parsed_entries
   end
   
   def trim_leading_newline(str)
@@ -86,22 +101,7 @@ class KindleClippingsParser
   end
   
   def get_dictionary_entries(dictionary = "The New Oxford American Dictionary")
-    #clean out metadata that we don't want
-    newlines_and_spaces = "[\s\\r\\n\r\n ]"
-    junk_meta_regexp = /^.*?Highlight.*?(Added on)(?x) (?# beginning of highlight and added on string, then turn on ignore whitespace)
-                        .*?(\d{2}:\d{2}\s(AM|PM))      (?# match the time)
-                        #{newlines_and_spaces}*        (?# any newline and spaces after)
-                       /
-    junk_free_contents = @contents.gsub(junk_meta_regexp,"")    
-
-    #extract dictionary entries               
-    separator      = "="*10
-    dictionary     = "The New Oxford American Dictionary"
-    entry_regexp   = /(?<=#{dictionary})(?x) (?# match dictionary name without consuming it, then turn on ignore whitespace mode)
-                     .*?                     (?# non-greedy match of any character until the next expression)
-                     (?=#{separator})        (?# stop matching at the separator, which is 10 "="'s by default)
-                     /m 
-    @dictionary_entries = junk_free_contents.scan(entry_regexp)
+    #stub
   end
   
   #this is a good opportunity to use some metaprogramming - get it by some characteristic
