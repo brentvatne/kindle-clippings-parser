@@ -53,11 +53,11 @@ class KindleClippingsParser
     entry_type_regexp = /(?<=-\s)         (?# look behind for "- " this marks the beginning of the line)
                          (Highlight|Note) (?# match either Highlight or Note, the two types of entries to clippings)
                         /x
-    #Matches: "0177-78"                    
-    highlight_position_regexp = /(?<=Loc\.\s) (#? look behind to match "Loc. " which appears before the position number)
-                                 \d*         (#? match any number of digits - books can be any length)
-                                 ([-]\d*)?   (#? may have a - followed by another number of arbitrary length)
-                                 (?=\s|)     (#? lastly just to be safe double check that it is followed by a " | ")
+    #Matches: "0177-78" 
+    highlight_position_regexp = /(?<=Loc\.\s) (?# look behind to match "Loc. " which appears before the position number)
+                                 \d*          (?# match any number of digits - books can be any length)
+                                 ([-]\d*)?    (?# may have a - followed by another number of arbitrary length)
+                                 (?=\s|)      (?# lastly just to be safe double check that it is followed by a " | ")
                                 /x
     
     raw_entries.each do |entry|
@@ -101,10 +101,8 @@ class KindleClippingsParser
   end
   
   def get_dictionary_entries(dictionary = "The New Oxford American Dictionary")
-    #stub
   end
   
-  #this is a good opportunity to use some metaprogramming - get it by some characteristic
   def get_entries_by_book_name(book_name)
     
   end
