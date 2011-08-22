@@ -5,12 +5,6 @@ class KindleClippingsParser
   
   def initialize(file_path)
     @file_path = file_path
-    @author_regexp =  /(\()       (?# opening parenthesis)
-                       [^\)^\(]*?  (?# anything that is not a parenthesis - non-greedy)
-                       (\))        (?# closing parenthesis)
-                       \Z          (?# this must be at the end of the line because book title may contain parenthesis)
-                      /x
-   
   end
   
   def entries
