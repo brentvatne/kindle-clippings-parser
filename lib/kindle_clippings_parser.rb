@@ -5,47 +5,77 @@ class KindleClippingsParser
   
   def initialize(file_path)
     @file_path = file_path
-    @author_regexp =  /(\()        (?# opening parenthesis)
+    @author_regexp =  /(\()       (?# opening parenthesis)
                        [^\)^\(]*?  (?# anything that is not a parenthesis - non-greedy)
                        (\))        (?# closing parenthesis)
                        \Z          (?# this must be at the end of the line because book title may contain parenthesis)
                       /x
+   
   end
   
   def entries
     return @entries if @entries
-    contents = load(@file_path)
-    separator   = "="*10
-    raw_entries = contents.split(separator)
-    raw_entries.map! { |entry| trim_leading_newline(entry) }
-    
-    parsed_entries = []
+    contents = File.read(@file_path)
+    raw_entries = split_entries(contents)
 
-    raw_entries.each do |entry|
-      parsed_entries << parse_entry(entry)
+    @entries = raw_entries.map do |entry|
+      parse_entry(entry)
     end
-    
-    @entries = parsed_entries
   end
-  
-  def load(file_path)
-    contents = File.read(file_path)
-    delete_returns(contents)
+
+  def split_entries(contents)
+    delete_carriage_returns!(contents)
+    raw_entries = contents.split("="*10)
+    raw_entries.map { |entry| trim_leading_newline(entry) }
   end
-  
-  def delete_returns(str)
-    str = str.gsub(/[\r]/,"")
+
+  def delete_carriage_returns!(str)
+    str.gsub!(/[\r]/,"")
+  end
+ 
+  def trim_leading_newline(str)
+    str.gsub(/\A\n/,"")
+  end
+
+  def parse_entry(entry)
+    lines    = entry.split(/\n/)
+
+    author   = parse_author(lines.first)
+    title    = parse_title(lines.first)
+    type     = parse_type(lines)
+    location = parse_location(lines)
+    contents = parse_content(lines)
+
+    { :title    => title, 
+      :author   => author, 
+      :type     => type, 
+      :location => location, 
+      :contents => contents }  
   end
   
   #eg: "For Whom the Bell Tolls (Ernest Hemingway)"
   #Matches: "(Ernest Hemingway)"  
-  def parse_author(entry)
-    parenthesis_regexp = /[\(\)]/ #matches ( or )
-    
-    author = entry[0].match(@author_regexp).to_a.first || ""
-    author.gsub!(parenthesis_regexp,"")              
-    
-    return author
+  def parse_author(text)
+    return '' unless has_author?(text) 
+    author = text.split('(').last
+    author = author.gsub(')', '')
+  end
+  
+  def parse_title(text)
+    return text unless has_author?(text) 
+    split_text = text.split('(')
+    if split_text.length > 2 
+      split_text.pop
+      title = split_text.join('(')
+    else
+      title = split_text[0]
+    end
+
+    title.strip
+  end
+
+  def has_author?(text)
+    !!(text =~ /\)\z/)
   end
   
   #eg: "- Highlight Loc. 10177-78 | Added on Sunday, October 24, 2010, 04:32 PM" 
@@ -62,12 +92,7 @@ class KindleClippingsParser
                    \Z                     (?# End of string)
                   /x
                   
-    date = lines[1].match(date_regexp).to_a.first or ""
-  end
-  
-  def parse_title(entry)
-    entry.first.gsub!(@author_regexp,"") #clear out the author to simplify getting the title
-    title = entry.first.strip    
+    date = entry[1].match(date_regexp).to_a.first or ""
   end
   
   #eg: "- Highlight Loc. 10177-78 | Added on Sunday, October 24, 2010, 04:32 PM"            
@@ -95,27 +120,7 @@ class KindleClippingsParser
     contents = entries[2..entries.length].join
   end
   
-
-  def parse_entry(entry)
-    lines = entry.split(/\n/)
-    
-    unless lines.length == 0
-      author = parse_author(lines)
-      title = parse_title(lines)
-      type = parse_type(lines)
-      location = parse_location(lines)
-      contents = parse_content(lines)
-      # TODO: add date
-      { :title  => title, :author => author, :type => type, 
-        :location => location, :contents => contents }  
-    end
-  end
-
-  
-  def trim_leading_newline(str)
-    str.gsub(/\A\n/,"")
-  end
-  
+   
 end
 
 #clippings_parsers = KindleClippingsParser.new("My Clippings.txt")
